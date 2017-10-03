@@ -1,0 +1,101 @@
+plugins {
+    id 'java'
+    id 'jacoco'
+}
+
+jacoco {
+    toolVersion = "0.7.6.201602180812"
+    reportsDir = file("${buildDir}/report")
+}
+
+def myTree = zipTree('Workspace.zip').matching {
+    include '**/*.java'
+}
+
+task preSetup {
+    doLast {
+        new File("GradingWorkspace").mkdir()
+    }
+}
+
+task setupGrading(type: Copy) {
+    dependsOn preSetup
+    def settings = new File("settings.gradle")
+    includeEmptyDirs = false
+    destinationDir = fileTree('GradingWorkspace').getDir()
+    from myTree
+    eachFile { details ->
+        def parts = details.getPath().split('/')
+        def buildName = 'GradingWorkspace/' + parts[1]
+        new File(buildName).mkdirs()
+        if (parts[1] == 'SortingAPI') {
+            new File(buildName+'/build.gradle') << (new File('buildFile/api/build.gradle')).text
+        } else if (parts[2] == 'src') {
+            new File(buildName+'/build.gradle') << (new File('buildFile/student/build.gradle')).text
+        }
+        settings << 'include \'GradingWorkspace:' << parts[1] << '\'\n'
+        if (parts[2] == 'test') {
+            details.setPath(parts[1] + '/src/test/java/' + parts[3]+ '/' + parts[4])
+        } else {
+            details.setPath(parts[1] + '/src/main/java/' + parts[3] + '/' + parts[4])
+        }
+    }
+    into 'GradingWorkspace'
+}
+
+task generateReport {
+    doLast {
+        new File('GradingWorkspace/build/report').mkdirs()
+        def myFile = new File('GradingWorkspace/build/report/grading.csv')
+
+        myFile << 'GROUP,PACKAGE,CLASS,INSTRUCTION_MISSED,INSTRUCTION_COVERED,' + 
+                    'BRANCH_MISSED,BRANCH_COVERED,LINE_MISSED,LINE_COVERED,COMPLEXITY_MISSED,' + 
+                    'COMPLEXITY_COVERED,METHOD_MISSED,METHOD_COVERED,TOTAL_TESTS,TOTAL_TESTS_PASSED,TOTAL_TESTS_FAILED\n'
+        new File('GradingWorkspace').eachDir() { dir ->
+            String name = dir.getPath().split('/')[1]
+            if (!name.equals('build') && name.substring(0,7).equals('Student')) {
+                def process = ('gradle :GradingWorkspace:' + name + ':test').execute()
+                process.waitFor()
+                def csvFile = new File(dir.getPath() + '/build/report/grading.csv').text
+                def xmlFile = new File(dir.getPath() + '/build/test-results/test/TEST-homework1.MySortTest.xml').text
+
+                def line = xmlFile.split('\n')[1].split('\"')
+                int total = line[3].toInteger()
+                int fails = line[7].toInteger()
+                int passed = total - fails
+
+                myFile << csvFile.split('\n')[1] << ',' << total << ',' << passed << ',' << fails << '\n'
+            }
+        }
+    }
+}
+
+task publishAPIFolder(type: GradleBuild) {
+    def tasks = new ArrayList<String>()
+    tasks.add('GradingWorkspace:SortingAPI:uploadArchives')
+    setTasks tasks
+}
+
+task publishAPIMaven(type: GradleBuild) {
+    def tasks = new ArrayList<String>()
+    tasks.add('GradingWorkspace:SortingAPI:publishToMavenLocal')
+    setTasks tasks
+}
+
+task cleanWorkspace {
+    doLast {
+        def tasks = new ArrayList<String>()
+        'gradle clean'.execute()
+        'rm -rf GradingWorkspace/build'.execute()
+        new File('GradingWorkspace').eachDir() { dir ->
+            String name = dir.getPath().split('/')[1]
+            ('gradle GradingWorkspace:'+ name + ':clean').execute()
+        }
+    }
+}
+
+task bundleWorkspace(type: Zip) {
+    from 'GradingWorkspace'
+    archiveName 'GradingWorkspace.zip'
+    destinationDir(file('GradingWorkspace/build/deploy'))
+}

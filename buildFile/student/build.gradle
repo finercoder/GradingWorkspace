@@ -1,0 +1,34 @@
+plugins {
+    id 'java'
+    id 'jacoco'
+}
+
+jacoco {
+    toolVersion = "0.7.6.201602180812"
+    reportsDir = file("$buildDir/customJacocoReportDir")
+}
+
+test {
+    ignoreFailures = true
+    finalizedBy jacocoTestReport
+}
+
+
+repositories {
+    mavenCentral()
+}
+
+jacocoTestReport {
+    reports {
+        xml.enabled false
+        csv.enabled true
+        csv.destination file("${buildDir}/report/grading.csv")
+        html.enabled false
+    }
+}
+
+dependencies {
+    compile 'org.slf4j:slf4j-api:1.7.5'
+    testCompile 'junit:junit:4.11'
+    compile project(':GradingWorkspace:SortingAPI')
+}

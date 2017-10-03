@@ -1,0 +1,40 @@
+plugins {
+    id 'java'
+    id 'maven'
+    id 'maven-publish'
+}
+
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            from components.java
+        }
+    }
+}
+
+publishing {
+   repositories {
+       maven { url "$buildDir/repo/maven_pulish" }
+   }
+}
+
+
+uploadArchives {
+    repositories {
+        add mavenDeployer {
+            repository(url: "file://${buildDir}/repo/maven")
+        }
+    }
+}
+
+group = "Assignment5.GradingWorkspace"
+version = "1.0.0-SNAPSHOT"
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    compile 'org.slf4j:slf4j-api:1.7.5'
+    testCompile 'junit:junit:4.11'
+}
